@@ -5,7 +5,7 @@ import os
 
 agent = PlannerFeedbackAgent(
     provider = "OpenAI",
-    model = "gpt-4.1",
+    model = "gpt-4.1-mini",
     temperature = 0.3,
     max_tokens = 10000,
     provider_api_key="..."
@@ -24,9 +24,9 @@ while True:
                 for section in interrupt.value["plan"].plan:
                     print(f"{section.number}._ {section.title} \n Objetivo: {section.objective}\n Descripcion: {section.description}")
         
-        answer_option = {1 : "Comenzar el reporte" ,2 : "Finaliza el Plan" , 3 : "Actualiza el Plan" }
+        answer_option = {1 : "Comenzar el reporte" ,2 : "Cancelar Reporte" , 3 : "Actualiza el Plan" }
         print("---------OPCIONES--------------")
-        answer = int(input("1._ Comenzar el reporte\n2._ Finalizar el plan\n3._ Actualizar el plan\n Ingresa la opción:"))
+        answer = int(input("1._ Comenzar el reporte\n2._ Cancelar Reporte\n3._ Actualizar el plan\n Ingresa la opción:"))
         feedback = None
         if answer == 2 or answer == 1:
             response = planner.invoke(
@@ -54,7 +54,8 @@ while True:
     else: 
         state = planner.invoke({
             "messages" : [],
-            "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods"
+            "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods",
+            "plan" : None
         } ,
         {"configurable" : {"thread_id" : "planner_abcf56ji"}}
         )

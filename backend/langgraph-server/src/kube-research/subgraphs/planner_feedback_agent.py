@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Annotated
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import ChatOpenAI
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -8,7 +8,7 @@ from langchain_community.tools import tool, BaseTool
 from langgraph.graph import StateGraph
 from langgraph.types import interrupt
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt import ToolNode, tools_condition, InjectedState
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 from subgraphs.planner_schemas import HumanFeedbackInputTool , HumanFeedback, PlanInput , PlannerState
@@ -81,9 +81,13 @@ Debes seguir este proceso de forma rigurosa en cada interacción:
 
 3.  **Iterar sobre el Plan:** Si el usuario responde con solicitudes de cambio, analiza el historial completo para comprender su feedback. Genera una **versión completamente nueva y actualizada del plan** que incorpore todos los cambios solicitados. No vuelvas a proponer elementos que el usuario ya ha rechazado.
 
-4.  **Repetir el Ciclo:** Después de generar el plan actualizado, vuelve al **Paso 2** y preséntalo de nuevo al usuario para su aprobación usando `__human_feedback_or_confirm`. Continuarás en este ciclo hasta que el usuario confirme explícitamente que está satisfecho, cuando este satisfecho tu misión a acabado y debes simplementer responderle que comenzaras el reporte.
+4.  **Repetir el Ciclo:** Después de generar el plan actualizado, vuelve al **Paso 2** y preséntalo de nuevo al usuario para su aprobación usando `__human_feedback_or_confirm`. Continuarás en este ciclo hasta que el usuario confirme explícitamente que está satisfecho, cuando este satisfecho tu misión a acabado y debes simplementer responderle que comenzaras el reporte pero este es el unico caso EXCEPCIONAL donde no utilizaras __human_feedback_or_confirm__ para comunicar que comenzaras el reporte.
 
 5.  **Finalizar la Planificación:** Solo cuando el usuario responda afirmativamente ("Sí, estoy de acuerdo", "El plan es correcto"), tu trabajo como planificador ha terminado, no debes recopilar más información del usuario.
+
+6. **Cancelar la Planificación:** Solo cuando el usuario responda negativamente ("Cancela el Reporte" , "Cancela la Planificación" , etc), tu trabajo como planificador ha terminado, no debes recopilar más información del usuario y exclusivamente en este caso EXCEPCIONAL deberás responder que se cancelo el reporte sin utilizar __human_feedback_or_confirm__.
+
+#
 
 # 5. Formato de Ejemplo y Advertencia Final
 
@@ -196,7 +200,7 @@ class PlannerFeedbackAgent:
             .add_conditional_edges("planner_agent" , tools_condition)
             .add_edge("tools" , "planner_agent")
         )
-        return planner_graph.compile(checkpointer=MemorySaver() , debug=False)
+        return planner_graph.compile(checkpointer=MemorySaver() , debug=True)
 
     
     #nodes
@@ -208,8 +212,10 @@ class PlannerFeedbackAgent:
                 "tools_context" : state["tools_context"]
             }
         )
+            
         return {
-            "messages" : [response]
+            "messages" : [response],
+            "plan" : PlanInput(**response.tool_calls[0]["args"]["plan"]) if response.tool_calls else None
         }
 
     def reponse_format_node(self):
@@ -258,7 +264,6 @@ class PlannerFeedbackAgent:
         })
 
         feedback_parsed = HumanFeedback(feedback=feedback["feedback"] , answer=feedback["answer"])
-
         return f"""
         HUMAN FEEDBACK:
         El humano respondio lo siguiente : {feedback_parsed.answer}

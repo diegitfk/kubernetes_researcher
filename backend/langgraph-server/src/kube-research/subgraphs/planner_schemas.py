@@ -1,10 +1,8 @@
 from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState
-from typing import List, Optional , Literal
+from langgraph.prebuilt import InjectedState
+from typing import List, Optional , Literal, Annotated
 
-
-class PlannerState(MessagesState):
-    tools_context : str
 
 class PlanSection(BaseModel):
     number : int = Field(description="Número de la sección en el informe puede ser 1 , 2 , 3 , etc.")
@@ -21,5 +19,8 @@ class HumanFeedbackInputTool(BaseModel):
 
 class HumanFeedback(BaseModel):
     feedback : Optional[str] = Field(default=None)
-    answer : Optional[Literal["Comenzar el reporte" , "Finaliza el Plan" , "Actualiza el Plan"]]
+    answer : Optional[Literal["Comenzar el reporte" , "Cancelar Reporte" , "Actualiza el Plan"]]
 
+class PlannerState(MessagesState):
+    tools_context : str
+    plan : Optional[PlanInput]
