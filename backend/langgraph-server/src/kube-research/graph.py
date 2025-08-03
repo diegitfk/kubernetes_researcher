@@ -1,9 +1,10 @@
 from langgraph.graph import StateGraph
 from langgraph.types import Command
-from subgraphs.planner_feedback_agent import PlannerFeedbackAgent , HumanFeedback
+from subgraphs.planner_research.planner_graph import PlannerResearchGraph
+from langchain_core.messages import HumanMessage
 import os
 
-agent = PlannerFeedbackAgent(
+agent = PlannerResearchGraph(
     provider = "OpenAI",
     model = "gpt-4.1-mini",
     temperature = 0.3,
@@ -38,7 +39,7 @@ while True:
                 ),
                 config={"configurable" : {"thread_id" : "planner_abcf56ji"}}
             )
-            print(response["messages"][-1].content)
+            print(response)
             break
         if answer == 3:
             feedback = str(input("Feedback : "))
@@ -54,10 +55,9 @@ while True:
     else: 
         state = planner.invoke({
             "messages" : [],
-            "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods",
+            "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods\n- prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus",
             "plan" : None
         } ,
         {"configurable" : {"thread_id" : "planner_abcf56ji"}}
         )
-        os.system("clear")
 
