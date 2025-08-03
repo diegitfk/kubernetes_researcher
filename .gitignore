@@ -5,7 +5,8 @@ __pycache__/
 requirements.txt
 # C extensions
 *.so
-
+.credentials
+.credentials/*
 # Distribution / packaging
 .Python
 build/
