@@ -9,11 +9,20 @@ En el servidor `langgraph-server` de la infraestructura, se despliega el servido
 ## Kube-Researcher
 Es un flujo de trabajo codificado en langgraph que posee la capacidad de generar secciones de un reporte sobre un cluster de kubernetes a partir de la disponibilidad de herramientas de métricas.
 este posee los siguientes flujos:
-- `Planificador de secciones`: Es un subgrafo que implementa llamadas a un llm teniendo este la disponibilidad de una herramienta llamada `__human_feedback_or_confirm`, es que básicamente la herramienta que pausa el estado del grafo para recibir de parte del usuario un feedback sobre el plan generado para actualizarlo, confirmar el comienzo de la investigación del cluster de kubernetes o cancelar la investigación.
+- `Planificador de secciones`: Es un subgrafo que implementa llamadas a un llm teniendo este la disponibilidad de una herramienta llamada `__human_feedback_or_confirm`, es que básicamente la herramienta que pausa el estado del grafo para recibir de parte del usuario un feedback sobre el plan generado para actualizarlo, confirmar el comienzo de la investigación del cluster de kubernetes o cancelar la investigación, este posee los siguientes nodos internos:
+   - **planner**: Nodo que genera un plan estructurado de las secciones del informe que se generara.
+   - **tools**: Un `ToolNode` con solamente una función `__human_feedback_or_confirm` que es la tool que utiliza el nodo **planner** para recibir el feedback del usuario hasta que aprueba o rechaza la generación del informe.
+   - **response_format**: Un analisis de la respuesta final del usuario, para completar con una salida estructurada si el plan es aprobado o cancelado, entregando un mensaje de referencia a la decisión del usuario.
+     ```json
+     {
+      "status": "APPROVED|CANCELLED",
+      "message": "Explicación breve de la decisión tomada"
+     }
+     ```
+Así los nodos mencionados se relacionan de la siguiente manera:
 
-Su grafo computacional es el siguiente:
+<img width="1043" height="625" alt="Captura desde 2025-08-02 21-17-13" src="https://github.com/user-attachments/assets/9afc2a6d-6105-4ac8-a6ce-6ae2e8c191d7" />
 
-<img width="1118" height="536" alt="Captura desde 2025-08-01 16-35-21" src="https://github.com/user-attachments/assets/1712fb6c-96e7-47ac-a98d-e4eecdeba799" />
 
 En que se diferencia este planificador de otros?: Planificador conoce todas las herramientas de métricas para el cluster que se encuentran a disposición, o sea **a medida que conectamos más MCP's de observabilidad, más herramientas tiene a disposición para investigar el estado del cluster**, con estas herramientas el planificador **propone** un plan a seguir con secciones del reporte estructuradas de la siguiente manera (numero , titulo , objetivo , descripción).  
 
@@ -23,7 +32,11 @@ En este caso al planificador se le entregaron las siguiente herramientas **ficti
 - prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus.
 y su comportamiento es el siguiente:
 
-https://github.com/user-attachments/assets/41e25807-a997-412a-904f-eee7358a5927
+
+https://github.com/user-attachments/assets/0adcb69e-a5da-4673-88e3-28cda4b1cbaa
+
+
+
 
 
 
