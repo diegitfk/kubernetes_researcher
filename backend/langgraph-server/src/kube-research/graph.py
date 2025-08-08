@@ -2,16 +2,20 @@ from langgraph.graph import StateGraph
 from langgraph.types import Command
 from subgraphs.planner_research.planner_graph import PlannerResearchGraph
 from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
 import os
 
 agent = PlannerResearchGraph(
-    provider = "OpenAI",
-    model = "gpt-4.1-mini",
-    temperature = 0.3,
-    max_tokens = 10000,
-    provider_api_key="..."
+    llm=ChatOpenAI(
+        model="gpt-5-mini",
+        reasoning={
+            "effort" : "medium",
+            "summary" : "auto"
+        },
+        api_key="..."
+    )
 )
-planner = agent.build_graph()
+planner = agent()
 while True:
     interrupts = planner.get_state({"configurable" : {"thread_id" : "planner_abcf56ji"}}).interrupts
 

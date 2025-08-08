@@ -4,7 +4,6 @@ from langgraph.prebuilt import InjectedState
 from langchain_core.messages import AnyMessage
 from typing import List, Optional , Literal, Annotated, TypedDict
 
-
 class PlanSection(BaseModel):
     number : int = Field(description="Número de la sección en el informe puede ser 1 , 2 , 3 , etc.")
     title : str = Field(description="Título de la sección del informe")

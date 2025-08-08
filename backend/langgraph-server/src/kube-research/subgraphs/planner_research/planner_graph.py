@@ -38,53 +38,19 @@ PROMPT_TEMPLATE_PLANNER_FORMAT = ChatPromptTemplate.from_messages([
 
 @attrs.define(init=True)
 class PlannerResearchGraph:
-    provider : Literal["Nvidia" , "OpenAI" , "Groq"]
-    model : str
-    temperature : float
-    max_tokens : int
-    provider_api_key : Optional[str] = attrs.field(default=None)
+    llm : BaseChatModel
     __llm_config : PlannerAgentConfig = attrs.field(init=False)    
     __tools : list[BaseTool] = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self.__tools = [self.__human_feedback_or_confirm]
-
-        if self.provider == "Nvidia":   
-            self.__llm_config = PlannerAgentConfig(
-                llm = ChatNVIDIA(
-                    model = self.model,
-                    temperature = self.temperature,
-                    max_tokens = self.max_tokens,
-                    nvidia_api_key = self.provider_api_key
-                ),
+        self.__llm_config = PlannerAgentConfig(
+                llm = self.llm,
                 tools=self.__tools,
                 response_format=PlannerFormatOutput
             )
-        if self.provider == "OpenAI":
-            self.__llm_config = PlannerAgentConfig(
-                llm = ChatOpenAI(
-                    model = self.model,
-                    temperature = self.temperature,
-                    max_tokens = self.max_tokens,
-                    api_key = self.provider_api_key
-                ),
-                tools=self.__tools,
-                response_format=PlannerFormatOutput
-            )
-        if self.provider == "Groq":
-            self.__llm_config = PlannerAgentConfig(
-                llm=ChatGroq(
-                    model=self.model,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    api_key=self.provider_api_key
-                ),
-                tools=self.__tools,
-                response_format=PlannerFormatOutput
-            )
-
     
-    def build_graph(self) -> CompiledStateGraph:
+    def __call__(self) -> CompiledStateGraph:
         tool_node = ToolNode(tools=self.__tools)
         planner_graph = (
             StateGraph(
@@ -100,7 +66,7 @@ class PlannerResearchGraph:
             .add_conditional_edges("planner_agent" , tools_condition , {"tools" : "tools" , "__end__" : "response_format"})
             .add_edge("tools" , "planner_agent")
         )
-        return planner_graph.compile(checkpointer=MemorySaver() , debug=False)
+        return planner_graph.compile(checkpointer=MemorySaver() , debug=True)
 
     
     #nodes
