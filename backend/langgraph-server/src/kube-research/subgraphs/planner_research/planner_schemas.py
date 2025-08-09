@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState, add_messages
 from langgraph.prebuilt import InjectedState
 from langchain_core.messages import AnyMessage
-from typing import List, Optional , Literal, Annotated, TypedDict
+from typing import List, Optional , Literal, Annotated, TypedDict, Any
 
 class PlanSection(BaseModel):
     number : int = Field(description="Número de la sección en el informe puede ser 1 , 2 , 3 , etc.")
@@ -22,15 +22,13 @@ class HumanFeedback(BaseModel):
     answer : Optional[Literal["Comenzar el reporte" , "Cancelar Reporte" , "Actualiza el Plan"]]
 
 class PlannerState(MessagesState):
-    tools_context : str
     plan : Optional[PlanArgTool]
-
-class PlannetStateInput(BaseModel):
-    tools_context : str
-
-class PlannerStateOutput(BaseModel):
-    action : Optional[PlanArgTool]
+    action : Any
 
 class PlannerFormatOutput(BaseModel):
     status: Literal["APPROVED", "CANCELLED"] = Field(description="Estado de la planificación: APPROVED si el usuario acepta el plan, CANCELLED en caso contrario.")
     message: str = Field(description="Explicación breve de la decisión tomada.")
+
+class PlannerStateOutput(BaseModel):
+    plan : Optional[PlanArgTool]
+    action : PlannerFormatOutput

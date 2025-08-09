@@ -1,21 +1,13 @@
 from langgraph.graph import StateGraph
 from langgraph.types import Command
 from subgraphs.planner_research.planner_graph import PlannerResearchGraph
+from kube_researcher import kube_researcher as kube_researcher_graph
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 import os
 
-agent = PlannerResearchGraph(
-    llm=ChatOpenAI(
-        model="google/gemini-2.5-flash",
-        base_url="https://openrouter.ai/api/v1",
-        reasoning_effort="high",
-        api_key="..."
-    )
-)
-planner = agent()
 while True:
-    interrupts = planner.get_state({"configurable" : {"thread_id" : "planner_abcf56ji"}}).interrupts
+    interrupts = kube_researcher_graph.get_state({"configurable" : {"thread_id" : "planner_abcf56ji"}}).interrupts
 
     if interrupts:
         for interrupt in interrupts:
@@ -32,7 +24,7 @@ while True:
         answer = int(input("1._ Comenzar el reporte\n2._ Cancelar Reporte\n3._ Actualizar el plan\n Ingresa la opción:"))
         feedback = None
         if answer == 2 or answer == 1:
-            response = planner.invoke(
+            response = kube_researcher_graph.invoke(
                 input=Command(
                     resume={
                         "feedback" : feedback,
@@ -45,7 +37,7 @@ while True:
             break
         if answer == 3:
             feedback = str(input("Feedback : "))
-            planner.invoke(
+            kube_researcher_graph.invoke(
                 input=Command(
                     resume={
                         "feedback" : feedback,
@@ -55,7 +47,7 @@ while True:
                 config={"configurable" : {"thread_id" : "planner_abcf56ji"}}
             )
     else: 
-        state = planner.invoke({
+        state = kube_researcher_graph.invoke({
             "messages" : [],
             "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods\n- prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus",
             "plan" : None
@@ -63,5 +55,3 @@ while True:
         {"configurable" : {"thread_id" : "planner_abcf56ji"}}
         )
 
-
-planner.get_state({"configurable" : {"thread_id" : "planner_abcf56ji"}})

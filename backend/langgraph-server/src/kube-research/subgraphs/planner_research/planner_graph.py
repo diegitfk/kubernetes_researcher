@@ -14,7 +14,7 @@ from langgraph.prebuilt import ToolNode, tools_condition, InjectedState
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 from subgraphs.planner_research.planner_config import PlannerAgentConfig
-from subgraphs.planner_research.planner_schemas import HumanFeedbackInputTool , HumanFeedback, PlanArgTool , PlannerState , PlannetStateInput , PlannerStateOutput , PlannerFormatOutput
+from subgraphs.planner_research.planner_schemas import HumanFeedbackInputTool , HumanFeedback, PlanArgTool , PlannerState , PlannerStateOutput , PlannerFormatOutput
 from pathlib import Path
 import attrs
 import tomllib
@@ -56,7 +56,6 @@ class PlannerResearchGraph:
             StateGraph(
                 name="Research Planner",
                 state_schema=PlannerState,
-                input_schema=PlannetStateInput,
                 output_schema=PlannerStateOutput
                 )
             .add_node("planner_agent" , self.planner_section_agent)
@@ -81,7 +80,7 @@ class PlannerResearchGraph:
         response = pipe_planner.invoke(
             {
                 "messages" : messages,
-                "tools_context" : state["tools_context"],
+                "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods\n- prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus",
             }
         )
 
@@ -90,7 +89,7 @@ class PlannerResearchGraph:
             "plan" : PlanArgTool(**response.tool_calls[0]["args"]["plan"]) if response.tool_calls else state["plan"]
         }
 
-    def response_format_node(self , state : PlannerState):
+    def response_format_node(self , state : PlannerState) -> PlannerStateOutput:
         tool_calls = filter_messages(messages=state["messages"] , include_types=ToolMessage)
         print(tool_calls)
         pipe_sto = self.__llm_config.build_pipe("response_format" , PROMPT_TEMPLATE_PLANNER_FORMAT)
@@ -98,8 +97,10 @@ class PlannerResearchGraph:
             "human_response" : tool_calls[-1].content,
             "current_plan" : state["plan"].model_dump()
         })
-        print(response)
-        return state
+        return {
+            "action" : response,
+            "plan" : state["plan"]
+        }
 
     #Internal Tools
     @staticmethod
