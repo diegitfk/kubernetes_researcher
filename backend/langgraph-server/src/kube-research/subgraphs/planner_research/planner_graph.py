@@ -20,7 +20,7 @@ from pathlib import Path
 import attrs
 import tomllib
 
-PROMPT_PATH = Path(__file__).parent.parent / "prompts.toml"
+PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts.toml"
 
 with open(PROMPT_PATH, "rb") as f:
     data = tomllib.load(f)
