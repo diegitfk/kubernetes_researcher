@@ -39,14 +39,16 @@ PROMPT_TEMPLATE_PLANNER_FORMAT = ChatPromptTemplate.from_messages([
 
 @attrs.define(init=True)
 class PlannerResearchGraph:
-    llm : BaseChatModel
+    reasoning_llm : BaseChatModel
+    one_shot_llm : BaseChatModel
     __llm_config : PlannerAgentConfig = attrs.field(init=False)    
     __tools : list[BaseTool] = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self.__tools = [self.__human_feedback_or_confirm]
         self.__llm_config = PlannerAgentConfig(
-                llm = self.llm,
+                reasoning_llm=self.reasoning_llm,
+                one_shot_llm=self.one_shot_llm,
                 tools=self.__tools,
                 response_format=PlannerFormatOutput
             )
@@ -66,7 +68,7 @@ class PlannerResearchGraph:
             .add_conditional_edges("planner_agent" , tools_condition , {"tools" : "tools" , "__end__" : "response_format"})
             .add_edge("tools" , "planner_agent")
         )
-        return planner_graph.compile(checkpointer=MemorySaver())
+        return planner_graph.compile()
 
     
     #nodes

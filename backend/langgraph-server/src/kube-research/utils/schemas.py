@@ -4,6 +4,7 @@ from typing import Dict , List , Literal , Optional, Any, Deque
 from langgraph.graph import MessagesState
 from subgraphs.planner_research.planner_schemas import PlanSection, PlanArgTool
 
+
 class ObservabilityNote(BaseModel):
     severity: Literal["info", "warning", "critical"] = Field(..., description="Nivel de severidad del hallazgo")
     metric: Optional[str] = Field(default=None, description="Nombre de la métrica asociada al hallazgo")
@@ -19,4 +20,10 @@ class TaskResearch(BaseModel):
     plan_section : PlanSection
     status : Literal["Pending" , "Done" , "Pass"]
     observability_notes : List[ObservabilityNote]
+
+class KubeResearcherState(MessagesState):
+    plan : Optional[PlanArgTool] #Plan generado por el agente planificador de kubernetes
+    queue_tasks : Optional[Deque[TaskResearch]] #Tareas que se enviaran al SWARM
+    queue_result_tasks : Optional[Deque[TaskResearch]] #Tareas que ya fueron abordadas por el SWARM
+    tools_ctx : str #Contexto de las herramientas
 
