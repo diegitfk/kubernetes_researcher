@@ -1,9 +1,11 @@
 from langchain_openai.chat_models import ChatOpenAI
 from langgraph.graph import StateGraph , MessagesState
+from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 from subgraphs.planner_research.planner_schemas import PlanArgTool
 from subgraphs.planner_research.planner_schemas import PlannerStateOutput
 from utils.build import build_planner_research_graph
+from utils.schemas import TaskResearch
 from collections import deque
 from typing import Literal, Optional, List, Deque
 
@@ -13,29 +15,36 @@ def aproved_or_cancelled_plan(state : PlannerStateOutput) -> Literal["plan_as_qu
         return "plan_as_queue"
     elif state.action.status == "CANCELLED":
         return "__end__"
-    
 
+llm = ChatOpenAI(
+    model="google/gemini-2.5-flash-lite",
+    base_url="https://openrouter.ai/api/v1",
+    reasoning_effort="medium",
+    streaming=True,
+    api_key="...",
+)
 class KubeResearcherState(MessagesState):
-    plan : Optional[PlanArgTool]
-    queue_tasks : Optional[Deque]
-    queue_result_tasks: Optional[Deque]
+    plan : Optional[PlanArgTool] #Plan generado por el agente planificador de kubernetes
+    queue_tasks : Optional[Deque[TaskResearch]] #Tareas que se enviaran al SWARM
+    queue_result_tasks : Optional[Deque[TaskResearch]] #Tareas que ya fueron abordadas por el SWARM
+    tools_ctx : str #Contexto de las herramientas
 
 def plan_as_queue(state : KubeResearcherState) -> KubeResearcherState:
     task_queue = deque()
     plan = state["plan"]
+
     for section in plan.plan:
-        task_queue.append(section)
+        task_queue.append(TaskResearch(
+            id=f"taskps_{section.number}",
+            plan_section=section,
+            status="Pending",
+            observability_notes=list()
+        ))        
+
     return {
         "queue_tasks" : task_queue,
-        "queue_result_tasks" : deque()
+        "queue_results_tasks" : deque()
     }
-
-llm = ChatOpenAI(
-    model="openai/o4-mini",
-    base_url="https://openrouter.ai/api/v1",
-    reasoning_effort="medium",
-    api_key="..."
-)
 planner_graph = build_planner_research_graph(llm=llm)
 
 kube_researcher_graph = StateGraph(

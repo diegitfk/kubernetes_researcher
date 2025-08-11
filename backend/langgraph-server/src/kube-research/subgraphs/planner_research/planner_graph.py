@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import tool, BaseTool
 from langgraph.graph import StateGraph
 from langchain_core.messages import HumanMessage, filter_messages, ToolMessage
+from langchain_core.tools.render import render_text_description_and_args
 from langgraph.types import interrupt
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition, InjectedState
@@ -65,11 +66,11 @@ class PlannerResearchGraph:
             .add_conditional_edges("planner_agent" , tools_condition , {"tools" : "tools" , "__end__" : "response_format"})
             .add_edge("tools" , "planner_agent")
         )
-        return planner_graph.compile(checkpointer=MemorySaver() , debug=True)
+        return planner_graph.compile(checkpointer=MemorySaver())
 
     
     #nodes
-    def planner_section_agent(self , state : PlannerState) -> PlannerState:
+    def planner_section_agent(self , state : PlannerState , config) -> PlannerState:
         messages = state.get("messages", [])
         # Si no hay mensajes, crear un mensaje inicial para que el agente comience
         if not messages:
@@ -80,26 +81,27 @@ class PlannerResearchGraph:
         response = pipe_planner.invoke(
             {
                 "messages" : messages,
-                "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods\n- prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus",
-            }
+                "tools_context" : state["tools_ctx"],
+            },
+            config
         )
 
         return {
-            "messages" : [response],
+            "messages" : state["messages"] + [response],
             "plan" : PlanArgTool(**response.tool_calls[0]["args"]["plan"]) if response.tool_calls else state["plan"]
         }
 
-    def response_format_node(self , state : PlannerState) -> PlannerStateOutput:
+    def response_format_node(self , state : PlannerState , config) -> PlannerStateOutput:
         tool_calls = filter_messages(messages=state["messages"] , include_types=ToolMessage)
-        print(tool_calls)
         pipe_sto = self.__llm_config.build_pipe("response_format" , PROMPT_TEMPLATE_PLANNER_FORMAT)
         response = pipe_sto.invoke({
             "human_response" : tool_calls[-1].content,
             "current_plan" : state["plan"].model_dump()
-        })
+        } , config)
         return {
             "action" : response,
-            "plan" : state["plan"]
+            "plan" : state["plan"],
+            "messages" : state["messages"]
         }
 
     #Internal Tools

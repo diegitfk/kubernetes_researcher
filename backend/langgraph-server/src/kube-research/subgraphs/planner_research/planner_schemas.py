@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState, add_messages
 from langgraph.prebuilt import InjectedState
 from langchain_core.messages import AnyMessage
+from langchain_core.tools import BaseTool
 from typing import List, Optional , Literal, Annotated, TypedDict, Any
 
 class PlanSection(BaseModel):
@@ -24,6 +25,7 @@ class HumanFeedback(BaseModel):
 class PlannerState(MessagesState):
     plan : Optional[PlanArgTool]
     action : Any
+    tools_ctx : str
 
 class PlannerFormatOutput(BaseModel):
     status: Literal["APPROVED", "CANCELLED"] = Field(description="Estado de la planificación: APPROVED si el usuario acepta el plan, CANCELLED en caso contrario.")

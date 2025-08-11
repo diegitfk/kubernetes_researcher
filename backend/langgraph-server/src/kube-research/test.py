@@ -3,8 +3,32 @@ from langgraph.types import Command
 from subgraphs.planner_research.planner_graph import PlannerResearchGraph
 from kube_researcher import kube_researcher as kube_researcher_graph
 from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+from langchain_core.tools.render import render_text_description_and_args
 from langchain_openai import ChatOpenAI
+from collections import deque
 import os
+
+#Tools Examples
+@tool
+def get_nodes():
+    """
+        Obtiene los nodos y estadisticas de los nodos de un cluster de kubernetes
+    """
+    ...
+@tool
+def get_pods_metrics(namespace : str):
+    """
+        Obtiene las metricas de los pods de un cluster de kubernetes
+    """
+    ...
+@tool
+def prometheus_cluster_metrics():
+    """
+        Obtiene las metricas del cluster de kubernetes via prometheus
+    """
+
+tools = [get_nodes , get_pods_metrics , prometheus_cluster_metrics]
 
 while True:
     interrupts = kube_researcher_graph.get_state({"configurable" : {"thread_id" : "planner_abcf56ji"}}).interrupts
@@ -24,34 +48,49 @@ while True:
         answer = int(input("1._ Comenzar el reporte\n2._ Cancelar Reporte\n3._ Actualizar el plan\n Ingresa la opción:"))
         feedback = None
         if answer == 2 or answer == 1:
-            response = kube_researcher_graph.invoke(
+            for chunk in kube_researcher_graph.stream(
                 input=Command(
                     resume={
                         "feedback" : feedback,
                         "answer" : answer_option[answer]
                     }
                 ),
+                stream_mode=["messages"],
+                subgraphs=True,
                 config={"configurable" : {"thread_id" : "planner_abcf56ji"}}
-            )
-            print(response)
+            ):
+                print(chunk)
+                #if chunk.content:
+                    #print(chunk.content , end="" , flush=True)
             break
         if answer == 3:
             feedback = str(input("Feedback : "))
-            kube_researcher_graph.invoke(
+            for chunk in kube_researcher_graph.stream(
                 input=Command(
                     resume={
                         "feedback" : feedback,
                         "answer" : answer_option[answer]
                     }
                 ),
+                subgraphs=True,
+                stream_mode="messages",
                 config={"configurable" : {"thread_id" : "planner_abcf56ji"}}
-            )
+            ):
+                print(chunk)
+                
+                #if chunk.content:
+                    #print(chunk.content , end="" , flush=True)
+
     else: 
-        state = kube_researcher_graph.invoke({
-            "messages" : [],
-            "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods\n- prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus",
-            "plan" : None
+        for chunk in kube_researcher_graph.stream({
+            "messages" : [HumanMessage(content="Requiero que generes un reporte breve sobre el estado de los pods y nodos de mi cluster de kubernetes")],
+            "tools_ctx" : render_text_description_and_args(tools)
         } ,
-        {"configurable" : {"thread_id" : "planner_abcf56ji"}}
-        )
+        {"configurable" : {"thread_id" : "planner_abcf56ji"}},
+        subgraphs=True,
+        stream_mode="messages"
+        ):
+            print(chunk)
+            #if chunk.content: 
+                #print(chunk , end="" , flush=True)
 
