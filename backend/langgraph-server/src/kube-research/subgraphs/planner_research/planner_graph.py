@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import tool, BaseTool
 from langgraph.graph import StateGraph
 from langchain_core.messages import HumanMessage, filter_messages, ToolMessage
+from langchain_core.tools.render import render_text_description_and_args
 from langgraph.types import interrupt
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition, InjectedState
@@ -19,7 +20,7 @@ from pathlib import Path
 import attrs
 import tomllib
 
-PROMPT_PATH = Path(__file__).parent.parent / "prompts.toml"
+PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts.toml"
 
 with open(PROMPT_PATH, "rb") as f:
     data = tomllib.load(f)
@@ -38,14 +39,70 @@ PROMPT_TEMPLATE_PLANNER_FORMAT = ChatPromptTemplate.from_messages([
 
 @attrs.define(init=True)
 class PlannerResearchGraph:
-    llm : BaseChatModel
+    """
+    Una clase que representa el agente de investigación del planificador.
+
+    El agente de investigación del planificador es responsable de generar un plan de investigación
+    basado en la consulta del usuario. El plan de investigación es una lista estructurada de
+    secciones, subsecciones y preguntas que se utilizarán para guiar el
+    proceso de investigación.
+
+    El agente de investigación del planificador se implementa como una máquina de estados que se
+    define utilizando la biblioteca `langgraph`. La máquina de estados tiene los
+    siguientes estados:
+
+    - `planner_agent`: Invoca al agente planificador para generar un
+        plan de investigación.
+    - `tools`: Ejecuta las herramientas necesarias para la investigación.
+    - `response_format`: Formatea la respuesta del agente planificador para que sea
+        más legible para los humanos.
+        
+    El agente de investigación del planificador tiene las siguientes transiciones:
+    
+    - `planner_agent` -> `tools`: Después de que el agente planificador haya generado
+        un plan de investigación, se llama al estado `tools` para ejecutar las herramientas.
+    - `tools` -> `planner_agent`: Después de que se hayan ejecutado las herramientas, se
+        llama de nuevo al estado `planner_agent` para continuar con la investigación.
+    - `planner_agent` -> `response_format`: Después de que el agente planificador
+        haya generado un plan de investigación, se llama al estado `response_format`
+        para formatear la respuesta.
+        
+    Diagrama ilustrativo de la máquina de estados:
+
+    ```text
+        +-------+     +-------------------+     +-------+
+        |       |     |                   |     |       |
+        | start |---->|   planner_agent   |<--->| tools |
+        |       |     |                   |     |       |
+        +-------+     +-------------------+     +-------+
+                                |                     ^
+                                |                     |
+                                v                     |
+                        +-------------------+         |
+                        |                   |         |
+                        |  response_format  |---------+
+                        |                   |
+                        +-------------------+
+                                |                       
+                                |                       
+                                v                       
+                            +-------+
+                            |       |
+                            |  end  |
+                            |       |
+                            +-------+
+    ```
+    """
+    reasoning_llm : BaseChatModel
+    one_shot_llm : BaseChatModel
     __llm_config : PlannerAgentConfig = attrs.field(init=False)    
     __tools : list[BaseTool] = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self.__tools = [self.__human_feedback_or_confirm]
         self.__llm_config = PlannerAgentConfig(
-                llm = self.llm,
+                reasoning_llm=self.reasoning_llm,
+                one_shot_llm=self.one_shot_llm,
                 tools=self.__tools,
                 response_format=PlannerFormatOutput
             )
@@ -65,11 +122,38 @@ class PlannerResearchGraph:
             .add_conditional_edges("planner_agent" , tools_condition , {"tools" : "tools" , "__end__" : "response_format"})
             .add_edge("tools" , "planner_agent")
         )
-        return planner_graph.compile(checkpointer=MemorySaver() , debug=True)
+        return planner_graph.compile()
 
     
     #nodes
-    def planner_section_agent(self , state : PlannerState) -> PlannerState:
+    def planner_section_agent(self , state : PlannerState , config) -> PlannerState:
+        """
+        Invoca al agente planificador para generar un plan de investigación basado en la consulta del usuario.
+
+        Esta función toma la consulta del usuario y el estado actual del grafo e
+        invoca al agente planificador para generar un plan de investigación. El agente planificador
+        es un modelo de lenguaje al que se le solicita que genere un plan de investigación estructurado
+        basado en la consulta del usuario.
+
+        La salida del agente planificador es una lista de objetos Pydantic que representan
+        el plan de investigación. Esta lista se agrega luego al estado del grafo.
+
+        Args:
+            state (dict): El estado actual del grafo.
+
+        Returns:
+            dict: El estado actualizado con el plan de investigación.
+            
+        Diagrama ilustrativo:
+        
+        ```text
+
+            +---------------------+   +-----------------------------------+    +----------------------+
+            | Consulta del usuario|-->| Agente de sección del planificador |-->| Plan de investigación|
+            +---------------------+   +-----------------------------------+    +----------------------+
+        
+        ```
+        """
         messages = state.get("messages", [])
         # Si no hay mensajes, crear un mensaje inicial para que el agente comience
         if not messages:
@@ -80,29 +164,52 @@ class PlannerResearchGraph:
         response = pipe_planner.invoke(
             {
                 "messages" : messages,
-                "tools_context" : "- get_pods_metrics() , para obtener las metricas de pods\n- prometheus_cluster_metrics(), para obtener metricas del cluster via prometheus",
-            }
+                "tools_context" : state["tools_ctx"],
+            },
+            config
         )
 
         return {
-            "messages" : [response],
+            "messages" : state["messages"] + [response],
             "plan" : PlanArgTool(**response.tool_calls[0]["args"]["plan"]) if response.tool_calls else state["plan"]
         }
 
-    def response_format_node(self , state : PlannerState) -> PlannerStateOutput:
+    def response_format_node(self , state : PlannerState , config) -> PlannerStateOutput:
+        """
+        Formatea la respuesta del agente planificador para que sea más legible para los humanos.
+
+        Esta función toma la salida sin procesar del agente planificador, que es una lista de
+        objetos Pydantic que representan el plan de investigación, y la formatea en una
+        cadena legible por humanos. Esto es útil para mostrar el plan al usuario
+        para su aprobación.
+
+        Args:
+            state (dict): El estado actual del grafo.
+
+        Returns:
+            dict: El estado actualizado con la respuesta formateada.
+        
+        Ejemplo de la salida:
+        ```python
+        'action': PlannerFormatOutput(
+                status='APPROVED', 
+                message='''La respuesta del usuario indica 'Comenzar el reporte', ..'''
+                ) ,
+        'plan': PlanArgTool(\nplan=[\nPlanSection( \nnumber=1, \ntitle='Visión General de Nodos', \nobjective='Obtener información básica sobre el estado ... función get_nodes().', \ndescription='Se utilizará la función `get_nodes()` para recopilar datos sobre cada nodo, ...'),\nPlanSection(...)'\n)])
+        ```
+        """
         tool_calls = filter_messages(messages=state["messages"] , include_types=ToolMessage)
-        print(tool_calls)
         pipe_sto = self.__llm_config.build_pipe("response_format" , PROMPT_TEMPLATE_PLANNER_FORMAT)
         response = pipe_sto.invoke({
             "human_response" : tool_calls[-1].content,
             "current_plan" : state["plan"].model_dump()
-        })
+        } , config)
         return {
             "action" : response,
-            "plan" : state["plan"]
+            "plan" : state["plan"],
+            "messages" : state["messages"]
         }
-
-    #Internal Tools
+    
     @staticmethod
     @tool(args_schema=HumanFeedbackInputTool)
     def __human_feedback_or_confirm(message_human : str , plan : PlanArgTool):

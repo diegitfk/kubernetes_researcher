@@ -8,7 +8,8 @@ import attrs
 
 @attrs.define
 class PlannerAgentConfig:
-    llm : BaseChatModel
+    reasoning_llm : BaseChatModel
+    one_shot_llm : BaseChatModel
     tools : Optional[list[BaseTool]] = attrs.field(default=None)
     response_format : Optional[BaseModel] = attrs.field(default=None)
     
@@ -16,13 +17,13 @@ class PlannerAgentConfig:
     def llm_with_tools(self) -> Runnable:
         if not self.tools:
             raise ValueError("No tools configured")  
-        return self.llm.bind_tools(tools=self.tools)
+        return self.reasoning_llm.bind_tools(tools=self.tools)
     
     @property
     def llm_with_structured_output(self) -> Runnable:
         if not self.response_format:
             raise ValueError("No response format configured")
-        return self.llm.with_structured_output(self.response_format)
+        return self.one_shot_llm.with_structured_output(self.response_format)
     
     def build_pipe(self , pipe_type : Literal["tools" , "response_format"] , prompt : ChatPromptTemplate) -> Runnable:
         if pipe_type == "tools":
