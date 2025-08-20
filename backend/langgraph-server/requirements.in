@@ -1,5 +1,4 @@
 langgraph
 langchain-community
-langchain-nvidia-ai-endpoints
 langchain-openai
-langchain-groq
+langchain-mcp-adapters
