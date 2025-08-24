@@ -1,5 +1,6 @@
-from langchain_core.tools import tool
+from langchain_core.tools import tool, BaseTool, InjectedToolCallId
 from langgraph.prebuilt import InjectedState
+from langchain_core.messages import ToolMessage
 from typing import Deque, Literal, Optional, List, Annotated
 from datetime import date
 from utils.schemas import ObservabilityNote , ObservabilityNoteInjectedAgent , TaskResearch
@@ -90,5 +91,7 @@ def create_register_observability_note_for_agent(agent_name : str):
             tags=tags,
             confidence_score=confidence_score
             )
-        return f"Se ha creado una nueva nota de observabilidad: \n{new_obervability_note}"
+        return new_obervability_note
     return register_observability_note
+
+        

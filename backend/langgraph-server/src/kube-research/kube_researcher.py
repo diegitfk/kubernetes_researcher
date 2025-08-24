@@ -240,7 +240,6 @@ class KubeResearcherGraph:
 
     def __call__(self) -> CompiledStateGraph:
         planner_graph = build_planner_research_graph(reasoning_llm=self.reasoning_llm , one_shot_llm=self.one_shot_llm)
-
         kube_researcher_graph = StateGraph(
             name="Kube Researcher",
             state_schema=KubeResearcherState

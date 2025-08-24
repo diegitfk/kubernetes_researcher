@@ -138,20 +138,17 @@ Genera una respuesta estructurada en formato JSON con la siguiente estructura:
 ```
 """
 
-[swarm_prompts]
-base_obs_agent="""
+[supervisor]
+base_research_supervisor="""
+
+"""
+base_research_obs_agent="""
 # Rol y objetivos
 **Rol: {agent_name}** 
 **Descripción:**
 <description_agent>
 {agent_description}
 </description_agent>
-
-# Descripción de Agentes Colaboradores  
-<team_context>
-{team_context}
-</team_context>
-*(Aquí se detalla el equipo de agentes con los que colaboras, incluyendo sus áreas de expertise, como monitoreo, seguridad o escalado).*
 
 # Herramientas Especializadas
 <specialized_tools>
