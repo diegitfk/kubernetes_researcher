@@ -1,21 +1,20 @@
-from typing import Any, Annotated, Callable, List
-from langchain_core.runnables import Runnable
+from typing import Any, Annotated, List , Dict, Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import BaseTool
-from langchain_core.messages import filter_messages, ToolMessage
 from langchain_mcp_adapters.sessions import Connection, StreamableHttpConnection
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph_supervisor import create_supervisor , create_handoff_tool
+from langgraph_supervisor import create_supervisor
 
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt.chat_agent_executor import AgentState
 from langgraph.runtime import Runtime
 
 from pydantic import BaseModel, Field, PrivateAttr
+from textwrap import dedent
 
-from subgraphs.supervisor_obs.common_tools import create_register_observability_note_for_agent
+from subgraphs.supervisor_obs.common_tools import create_register_observability_note_for_agent, create_handoff_research_tool
+from subgraphs.supervisor_obs.research_workflow import ResearchAgent
 from utils.schemas import TaskResearch
 
 
@@ -39,7 +38,7 @@ class ResearchState(AgentState):
     current_task : Any
     current_notes : List[Any]
 
-class ObservabilitySupervisorBuilder(BaseModel):
+class SupervisorBuilder(BaseModel):
     model : BaseChatModel
     config_agents : Annotated[
         list[AgentConfig] , Field(
@@ -48,6 +47,7 @@ class ObservabilitySupervisorBuilder(BaseModel):
             este serializable se obtiene directamente de la base de datos al momento de construir el grafo
             """
     )]
+    __sub_agents : Optional[Dict[str , CompiledStateGraph]] = PrivateAttr()
 
     def _build_mcp_connections(self) -> MultiServerMCPClient:
         connections = dict()
@@ -56,25 +56,41 @@ class ObservabilitySupervisorBuilder(BaseModel):
         return MultiServerMCPClient(connections=connections)
 
 
-    async def _build_research_agents(self) -> list[CompiledStateGraph]:
+    async def _build_research_agents(self) -> Dict[str , CompiledStateGraph]:
         """
-        Herramienta encargada de generar a partir de las conexiones MCP actuales react agents
-        especializados por MCP.
+        Herramienta encargada de generar a partir de las conexiones MCP actuales agentes
+        especializados por MCP, esta función devuelve un diccionario con grafos de estados la 
+        compilados:
+        ```json
+        {
+            "kube_observer" : CompiledStateGraph,
+            "prometheus_agent" : CompiledStateGraph,
+            "graphana_agent" : CompiledStateGraph,
+            ...
+        }
+        ```
+        es necesaria esta estructura para que el supervisor sepa que grado de estado compilado corresponde
+        a que agente, con la finalidad de no dificultar la creación de handoffs tools que el agente tendra
+        para los subagentes espcializados.
         """
         multi_server_client = self._build_mcp_connections()
-        agents : list[CompiledStateGraph] = []
+        agents : Dict[str , CompiledStateGraph] = dict()
         for agent in self.config_agents:
             mcp_tools : list[BaseTool] = await multi_server_client.get_tools(agent.mcp_connection.id)
-            research_agent = create_react_agent(
+            research_agent = ResearchAgent(
+                agent_name=agent.name,
+                agent_description=agent.description,
                 model=self.model,
-                tools=mcp_tools,
-                name=agent.name
-            )
-        ...
+                tools=mcp_tools
+            ).compile()
+            agents[agent.name] = research_agent
+        self.__sub_agents = agent
+        return agents
 
 
     def build_supervisor(self) -> CompiledStateGraph:
         ...
+            
 
 
 
