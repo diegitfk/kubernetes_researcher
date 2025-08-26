@@ -11,7 +11,7 @@ def create_register_observability_note_for_agent(agent_name : str):
     agregado con la finalidad de mantener una coherencia entre el responsable de generar la nota de observabilidad, evitando sesgos por 
     parte del modelo.
     """
-    @tool(args_schema=ObservabilityNote)
+    @tool
     def register_observability_note(
     # Core fields  
     severity: Literal["info", "warning", "critical"], 
