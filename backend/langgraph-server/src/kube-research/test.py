@@ -31,7 +31,7 @@ def prometheus_cluster_metrics():
 tools = [get_nodes , get_pods_metrics , prometheus_cluster_metrics]
 kube_researcher_graph = KubeResearcherGraph(
     reasoning_llm=ChatOpenAI(
-        model="google/gemini-2.5-flash-lite",
+        model="google/gemini-2.5-flash",
         base_url="https://openrouter.ai/api/v1",
         reasoning_effort="medium",
         streaming=True,
