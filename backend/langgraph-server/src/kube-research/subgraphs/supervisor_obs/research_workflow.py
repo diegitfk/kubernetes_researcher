@@ -117,4 +117,4 @@ class ResearchAgent(BaseModel):
         research_workflow.add_edge("tools" , "push_note_hook")
         research_workflow.add_edge("push_note_hook" , "llm_call")
         research_workflow.add_conditional_edges("llm_call" , self.should_continue)
-        return research_workflow.compile(debug=True)
+        return research_workflow.compile(debug=True , name=self.agent_name)

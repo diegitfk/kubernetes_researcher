@@ -2,7 +2,7 @@ from typing import Any, Annotated, List , Dict, Optional, Self
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate , PromptTemplate
 from langchain_community.tools import BaseTool
-from langchain_mcp_adapters.sessions import Connection, StreamableHttpConnection
+from langchain_mcp_adapters.sessions import Connection
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph_supervisor import create_supervisor
 
@@ -24,7 +24,7 @@ with open(PROMPT_PATH, "rb") as f:
 
 class MCPSConnection(BaseModel):
     id : str
-    connection_args : StreamableHttpConnection
+    connection_args : Dict
 
 
 class AgentConfig(BaseModel):
@@ -80,6 +80,7 @@ class SupervisorBuilder(BaseModel):
         for conf in self.config_agents:
             connections[conf.mcp_connection.id] = conf.mcp_connection.connection_args
         self.__mcp_connections = MultiServerMCPClient(connections=connections)
+        print(f"CONNECTIONS : {self.__mcp_connections}")
         return self
 
 
@@ -102,7 +103,7 @@ class SupervisorBuilder(BaseModel):
         """
         agents : Dict[str , CompiledStateGraph] = dict()
         for agent in self.config_agents:
-            mcp_tools : list[BaseTool] = await self.__mcp_connections.get_tools(agent.mcp_connection.id)
+            mcp_tools : list[BaseTool] = await self.__mcp_connections.get_tools(server_name=agent.mcp_connection.id)
             research_agent = ResearchAgent(
                 agent_name=agent.name,
                 agent_description=agent.description,
@@ -122,7 +123,7 @@ class SupervisorBuilder(BaseModel):
         await self.__build_research_agents()
         return self
 
-    def compile(self) -> CompiledStateGraph:
+    def compile(self , name : str) -> CompiledStateGraph:
         if not self.__is_built:
             raise ValueError("Builder not fully constructed. Call build() or build_research_agents() first")
         
@@ -146,9 +147,10 @@ class SupervisorBuilder(BaseModel):
             agents=list(self.__sub_agents.values()),
             tools=handoff_tools,
             prompt=self.__dynamic_prompt,
-            supervisor_name="research_supervisor"
+            state_schema=SupervisorState,
+            supervisor_name=name
         )
-        return supervisor_agent.compile()
+        return supervisor_agent.compile(name=name)
     
     @property
     def is_ready(self) -> bool:
