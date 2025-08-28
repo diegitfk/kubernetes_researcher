@@ -16,6 +16,7 @@ from langgraph.runtime import Runtime
 from langgraph._internal._runnable import RunnableCallable
 
 from pydantic import BaseModel , Field , PrivateAttr
+from textwrap import dedent
 from pathlib import Path
 import tomllib
 
@@ -34,9 +35,9 @@ def factory_prompt_template() -> str:
         ])
 
 class ResearchSchema(TypedDict):
-    messages : Annotated[Sequence[BaseMessage], add_messages]
-    current_task : TaskResearch
-    current_notes : List[ObservabilityNoteInjectedAgent]
+    messages : Annotated[Sequence[BaseMessage], add_messages] #Lista de mensajes que puede visualizar el agente
+    current_task : str # La tarea actual que el agente de investigación debe realizar
+    current_notes : List[ObservabilityNoteInjectedAgent] #Notas de investigaciones que se han hecho en el proceso de investigación
 
 class ResearchAgent(BaseModel):
     agent_name : str
